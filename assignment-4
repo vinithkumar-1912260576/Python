@@ -1,1 +1,139 @@
+import os
+import csv
+import re
 
+INPUT_FILES = [
+    "department1.txt",
+    "department2.txt",
+    "department3.txt",
+    "department4.txt",
+    "department5.txt"
+]
+
+master = []
+seen = set()
+events = {}
+errors = []
+
+duplicate = 0
+invalid = 0
+damaged = 0
+missing = 0
+
+# Validate email
+def valid_email(email):
+    return bool(re.match(
+        r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$',
+        email
+    ))
+
+# Read department files
+for filename in INPUT_FILES:
+    try:
+        with open(filename, "r") as file:
+            for line_no, line in enumerate(file, 1):
+                try:
+                    parts = line.strip().split("|")
+
+                    if len(parts) != 5:
+                        raise ValueError("Damaged line")
+
+                    reg, name, dept, email, event_list = parts
+
+                    if not all([reg, name, dept, email, event_list]):
+                        raise ValueError("Missing field")
+
+                    if reg in seen:
+                        duplicate += 1
+                        errors.append(
+                            f"{filename}:{line_no} - Duplicate: {reg}"
+                        )
+                        continue
+
+                    if not valid_email(email):
+                        invalid += 1
+                        errors.append(
+                            f"{filename}:{line_no} - Invalid email: {email}"
+                        )
+                        continue
+
+                    seen.add(reg)
+
+                    chosen_events = [
+                        e.strip() for e in event_list.split(";")
+                        if e.strip()
+                    ]
+
+                    if not chosen_events:
+                        raise ValueError("No events selected")
+
+                    student = [reg, name, dept, email,
+                               ";".join(chosen_events)]
+
+                    master.append(student)
+
+                    for event in chosen_events:
+                        events.setdefault(event, []).append(
+                            [reg, name, dept, email]
+                        )
+
+                except Exception as e:
+                    damaged += 1
+                    errors.append(
+                        f"{filename}:{line_no} - {e}"
+                    )
+
+    except FileNotFoundError:
+        missing += 1
+        errors.append(f"{filename} - File not found")
+
+# Write clean master file
+with open("master.csv", "w", newline="") as file:
+    writer = csv.writer(file)
+    writer.writerow(["Register No", "Name", "Department",
+                     "Email", "Events"])
+    writer.writerows(master)
+
+# Create event-wise participant files
+os.makedirs("event_lists", exist_ok=True)
+
+for event, students in events.items():
+    safe_name = re.sub(r'[^A-Za-z0-9_-]', '_', event)
+
+    with open(f"event_lists/{safe_name}.txt", "w") as file:
+        file.write("Register No | Name | Department | Email\n")
+
+        for student in students:
+            file.write(" | ".join(student) + "\n")
+
+# Generate summary report
+with open("summary.txt", "w") as file:
+    file.write("COLLEGE FEST REGISTRATION REPORT\n")
+    file.write("--------------------------------\n")
+    file.write(f"Total valid registrations: {len(master)}\n")
+    file.write(f"Total events: {len(events)}\n")
+    file.write(f"Duplicate registrations: {duplicate}\n")
+    file.write(f"Invalid emails: {invalid}\n")
+    file.write(f"Damaged lines: {damaged}\n")
+    file.write(f"Missing files: {missing}\n")
+
+    file.write("\nEVENT-WISE PARTICIPANTS\n")
+
+    for event, students in events.items():
+        file.write(f"{event}: {len(students)} participants\n")
+
+# Generate error log
+with open("error_log.txt", "w") as file:
+    if errors:
+        file.write("\n".join(errors))
+    else:
+        file.write("No errors found.")
+
+print("COLLEGE FEST REGISTRATION COMPLETED")
+print("-----------------------------------")
+print("Valid registrations:", len(master))
+print("Duplicate registrations:", duplicate)
+print("Invalid emails:", invalid)
+print("Damaged lines:", damaged)
+print("Missing files:", missing)
+print("\nOutput files generated successfully!")
