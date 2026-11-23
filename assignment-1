@@ -1,0 +1,61 @@
+from decimal import Decimal, ROUND_HALF_UP
+
+# Rate settings
+REGULAR_BASE = Decimal("30.00")
+REGULAR_STEP = Decimal("0.40")
+
+SUMMER_BASE = Decimal("32.00")
+SUMMER_STEP = Decimal("0.45")
+
+FAT_REFERENCE = Decimal("3.00")
+FAT_STEP_SIZE = Decimal("0.10")
+BONUS_RATE = Decimal("0.50")
+BONUS_LIMIT = Decimal("500")
+
+def get_rate(month):
+    if 4 <= month <= 6:
+        return SUMMER_BASE, SUMMER_STEP
+    return REGULAR_BASE, REGULAR_STEP
+
+def calculate_rate(fat, base, step):
+    fat_steps = int((fat - FAT_REFERENCE) / FAT_STEP_SIZE)
+    return base + fat_steps * step
+
+def calculate_bill(deliveries, month):
+    base, step = get_rate(month)
+    total_litres = sum(d[0] for d in deliveries)
+    total_amount = Decimal("0")
+
+    bonus = BONUS_RATE if total_litres > BONUS_LIMIT else Decimal("0")
+
+    print("\nMilk Bill")
+    print("Season:", "April-June" if 4 <= month <= 6
+          else "Regular")
+
+    for litres, fat, snf in deliveries:
+        rate = calculate_rate(fat, base, step)
+        amount = litres * rate
+        total_amount += amount
+
+        print(f"Litres: {litres}, Fat: {fat}, SNF: {snf}")
+        print(f"Rate: Rs.{rate:.2f}")
+        print(f"Amount: Rs.{amount:.2f}")
+
+    bonus_amount = total_litres * bonus
+    final_amount = total_amount + bonus_amount
+
+    print("Total Litres:", total_litres)
+    print(f"Bonus: Rs.{bonus_amount:.2f}")
+    print(f"Final Amount: Rs.{final_amount:.2f}")
+
+# Sample deliveries for 10 days
+deliveries = [
+    (Decimal("300"), Decimal("4.00"), Decimal("8.50")),
+    (Decimal("250"), Decimal("4.20"), Decimal("8.60"))
+]
+
+# Test regular season
+calculate_bill(deliveries, 2)
+
+# Test April-June season
+calculate_bill(deliveries, 4)
