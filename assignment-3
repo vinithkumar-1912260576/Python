@@ -1,1 +1,155 @@
+import time
+import re
 
+# Normalize phone numbers
+def normalize_phone(phone):
+    digits = re.sub(r"\D", "", str(phone))
+
+    if len(digits) == 12 and digits.startswith("91"):
+        digits = digits[2:]
+    elif len(digits) == 11 and digits.startswith("0"):
+        digits = digits[1:]
+
+    return digits
+
+
+# Normalize names
+def normalize_name(name):
+    return name.strip().lower()
+
+
+# Merge contacts
+def merge_contacts(contacts):
+    records = {}
+    phone_index = {}
+    next_id = 0
+
+    for contact in contacts:
+
+        name = contact.get("name", "").strip()
+
+        raw_phones = contact.get("phones", [])
+        if isinstance(raw_phones, str):
+            raw_phones = [raw_phones]
+
+        if contact.get("phone"):
+            raw_phones = raw_phones + [contact["phone"]]
+
+        phones = {
+            normalize_phone(p)
+            for p in raw_phones if p
+        }
+        phones = {p for p in phones if p}
+
+        raw_emails = contact.get("emails", [])
+        if isinstance(raw_emails, str):
+            raw_emails = [raw_emails]
+
+        emails = {
+            e.strip().lower()
+            for e in raw_emails if e.strip()
+        }
+
+        # Find existing matching contacts
+        matches = {
+            phone_index[p]
+            for p in phones if p in phone_index
+        }
+
+        if not matches:
+            record_id = next_id
+            next_id += 1
+
+            records[record_id] = {
+                "names": set(),
+                "phones": set(),
+                "emails": set()
+            }
+        else:
+            record_id = min(matches)
+
+            # Merge previously separate records
+            for old_id in matches:
+                if old_id != record_id:
+                    records[record_id]["names"].update(
+                        records[old_id]["names"])
+                    records[record_id]["phones"].update(
+                        records[old_id]["phones"])
+                    records[record_id]["emails"].update(
+                        records[old_id]["emails"])
+
+                    del records[old_id]
+
+        # Add new information
+        if name:
+            records[record_id]["names"].add(name)
+
+        records[record_id]["phones"].update(phones)
+        records[record_id]["emails"].update(emails)
+
+        # Update phone index
+        for p in records[record_id]["phones"]:
+            phone_index[p] = record_id
+
+    return list(records.values())
+
+
+# Test with sample contacts
+contacts = [
+    {
+        "name": "Dr. Ravi",
+        "phone": "+91 98400 12345",
+        "emails": ["ravi@gmail.com"]
+    },
+    {
+        "name": "ravi kumar",
+        "phone": "9840012345",
+        "emails": ["ravi.office@gmail.com"]
+    },
+    {
+        "name": "Arun",
+        "phone": "9876543210",
+        "emails": ["arun@gmail.com"]
+    },
+    {
+        "name": "Dr. Ravi",
+        "phone": "09840012345",
+        "emails": ["ravi@gmail.com"]
+    }
+]
+
+print("MERGED CONTACTS")
+result = merge_contacts(contacts)
+
+for contact in result:
+    print("\nNames:", contact["names"])
+    print("Phones:", contact["phones"])
+    print("Emails:", contact["emails"])
+
+
+# Verify result
+print("\nTotal contacts after merging:", len(result))
+
+
+# Performance measurement
+def test_performance(n):
+    data = [
+        {
+            "name": f"Person {i}",
+            "phone": str(9000000000 + i),
+            "emails": [f"user{i}@gmail.com"]
+        }
+        for i in range(n)
+    ]
+
+    start = time.perf_counter()
+    merged = merge_contacts(data)
+    end = time.perf_counter()
+
+    print("\nInput contacts:", n)
+    print("Merged contacts:", len(merged))
+    print("Execution time: {:.6f} seconds".format(end - start))
+
+
+test_performance(1000)
+test_performance(100000)
